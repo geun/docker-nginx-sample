@@ -1,25 +1,67 @@
 FROM ubuntu:16.04
+MAINTAINER Francisco Carmona <fcarmona.olmedo@gmail.com>
 
+# Environments vars
+ENV TERM=xterm
+
+RUN apt-get update
 RUN apt-get -y upgrade
-RUN apt-get -y install php7.0-fpm php7.0-mysql php7.0-gd php7.0-cli nginx 
 
-RUN rm -v /etc/nginx/nginx.conf
-ADD nginx.conf /etc/nginx/
-#ADD mime.types /etc/nginx/
+# Packages installation
+RUN DEBIAN_FRONTEND="noninteractive" apt-get -y --fix-missing install php7.0 \
+    php7.0-cli \
+    php-fpm \
+    php7.0-gd \
+    php7.0-json \
+    php7.0-mbstring \
+    php7.0-xml \
+    php7.0-xsl \
+    php7.0-zip \
+    php7.0-soap \
+    php-pear \
+    curl \
+    php7.0-curl \
+    apt-transport-https \
+    git \
+    apt-transport-https \
+    nano \
+    lynx-cur
 
-RUN mkdir -p /opt/projects
-ADD projects /opt/projects
+# Install supervisor
+RUN DEBIAN_FRONTEND="noninteractive" apt-get -y --fix-missing install supervisor
+RUN mkdir -p /var/log/supervisor
 
-RUN echo "daemon off;" >> /etc/nginx/nginx.conf
+# Install nginx (full)
+RUN DEBIAN_FRONTEND="noninteractive" apt-get install -y nginx-full
 
-RUN ln -sf /dev/stdout /var/log/nginx/access.log
-RUN ln -sf /dev/stderr /var/log/nginx/error.log
+# Composer install
+RUN curl -sS https://getcomposer.org/installer | php
+RUN mv composer.phar /usr/local/bin/composer
 
-# Expose ports.
+# Nginx site conf
+ADD config/nginx/nginx-site.conf /etc/nginx/sites-available/default
+ADD config/nginx/nginx.conf /etc/nginx/nginx.conf
+
+# PHP conf
+ADD config/php/php.ini /etc/php/7.0/fpm/php.ini
+ADD config/fpm/www.conf /etc/php/7.0/fpm/pool.d/www.conf
+
+# Supervisor conf
+ADD config/supervisor/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+# Add phpinfo script for INFO purposes
+RUN echo "<?php phpinfo();" >> /var/www/html/index.php
+
+WORKDIR /var/www/html/
+
+# Create socker
+RUN mkdir -p /run/php
+
+# Volume
+VOLUME /var/www/html
+
+# Ports: nginx
 EXPOSE 80
+#443
 
-CMD ["nginx"]
-
-# Command 
-# sudo docker build -t hello-nginx .
-# sudo docker run --name docker-nginx -p 8080:80 hello-nginx
+CMD ["/usr/bin/supervisord"]
